@@ -23,18 +23,15 @@ class AlumniTrackerController extends Controller
             'kota_asal' => $request->input('kota_asal')
         ];
 
-        // Buat Query B sesuai desain (mencari di LinkedIn via Google)
         $queryB = 'site:linkedin.com/in/ "' . $targetProfile['nama'] . '" "' . $targetProfile['prodi'] . '"';
 
-        // --- MENGAMBIL DATA ASLI MENGGUNAKAN SERPAPI ---
-        // GANTI 'API_KEY_KAMU_DISINI' DENGAN API KEY DARI SERPAPI.COM
         $apiKey = '31cbe9af9e7e0bf643254453516d6ebd20d972d77182ca62e424c341205f3cce'; 
         
         $response = Http::get('https://serpapi.com/search.json', [
             'engine' => 'google',
             'q' => $queryB,
             'api_key' => $apiKey,
-            'num' => 3 // Ambil 3 hasil teratas saja
+            'num' => 3
         ]);
 
         $data = $response->json();
@@ -45,14 +42,11 @@ class AlumniTrackerController extends Controller
         $auditTrail = null;
         $score = 0;
 
-        // 5) Sistem Menarik Data dari Sumber Publik & Melakukan Parsing [cite: 30, 32]
         if (isset($data['organic_results']) && count($data['organic_results']) > 0) {
             $hasilPertama = $data['organic_results'][0];
             $teksSnippet = strtolower($hasilPertama['snippet'] ?? '');
             $judul = strtolower($hasilPertama['title'] ?? '');
 
-            // 6) Ekstraksi Sinyal Identitas [cite: 34]
-            // Cek apakah nama dan prodi/kampus muncul di teks asli dari Google
             if (str_contains($judul, strtolower($targetProfile['nama']))) {
                 $mockSignals['nama'] = $targetProfile['nama'];
             }
@@ -65,7 +59,6 @@ class AlumniTrackerController extends Controller
 
             $score = $this->calculateConfidenceScore($mockSignals, $targetProfile);
             
-            // 10) Snapshot Bukti Temuan [cite: 63, 64]
             $auditTrail = [
                 'snapshot_url' => $hasilPertama['link'],
                 'cuplikan_teks' => $hasilPertama['snippet'] ?? 'Tidak ada cuplikan',
@@ -75,7 +68,6 @@ class AlumniTrackerController extends Controller
 
         $status = $this->determineStatus($score);
 
-        // Jika tidak ketemu
         if (!$auditTrail) {
             $auditTrail = [
                 'snapshot_url' => '-', 'cuplikan_teks' => '-', 'tanggal_akses' => Carbon::now()->toDateTimeString()
